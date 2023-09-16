@@ -2,36 +2,37 @@
 ; avr-delta-mod-periodic.asm
 ;
 ; Created: 9/15/2023 6:49:42 PM
-; Author : comra
 ;
+; Fuses should be set for no bootloader.
 
 .cseg
 .org 0x0000
-	jmp irq_reset
-	jmp irq_int0
-	jmp irq_int1
-	jmp irq_pcint0
-	jmp irq_pcint1
-	jmp irq_pcint2
-	jmp irq_wdt
-	jmp irq_timer2_compa
-	jmp irq_timer2_compb
-	jmp irq_timer1_capt
-	jmp irq_timer1_compa
-	jmp irq_timer1_compb
-	jmp irq_timer1_ovf
-	jmp irq_timer0_compa
-	jmp irq_timer0_compb
-	jmp irq_timer0_ovf
-	jmp irq_spi_stc
-	jmp irq_usart_rxc
-	jmp irq_usart_udre
-	jmp irq_usart_txc
-	jmp irq_adc
-	jmp irq_ee_ready
-	jmp irq_analog_comp
-	jmp irq_twi
-	jmp irq_spm_ready
+    jmp irq_reset
+    jmp irq_int0
+    jmp irq_int1
+    jmp irq_pcint0
+    jmp irq_pcint1
+    jmp irq_pcint2
+    jmp irq_wdt
+    jmp irq_timer2_compa
+    jmp irq_timer2_compb
+    jmp irq_timer1_capt
+    jmp irq_timer1_compa
+    jmp irq_timer1_compb
+    jmp irq_timer1_ovf
+    jmp irq_timer0_compa
+    jmp irq_timer0_compb
+    jmp irq_timer0_ovf
+    jmp irq_spi_stc
+    jmp irq_usart_rxc
+    jmp irq_usart_udre
+    jmp irq_usart_txc
+    jmp irq_adc
+    jmp irq_ee_ready
+    jmp irq_analog_comp
+    jmp irq_twi
+    jmp irq_spm_ready
+
 
 irq_int0:
 irq_int1:
@@ -58,46 +59,33 @@ irq_analog_comp:
 irq_twi:
 irq_spm_ready:
 unhandled_loop:
-	jmp unhandled_loop
+    jmp unhandled_loop
 
 
 irq_reset:
-	; Set stack pointer in case I want to use interrupts or calls.
-	ldi r20, high(RAMEND)
-	out SPH, r16
-	ldi r20, low(RAMEND)
-	out SPL, r16
+    ; Set stack pointer in case I want to use interrupts or calls.
+    ldi r20, high(RAMEND)
+    out SPH, r16
+    ldi r20, low(RAMEND)
+    out SPL, r16
 
-	; Disable pull-ups so that clocking out the waveform doesn't keep
-	; toggling active pull-ups on PC1-PC6.
-	ldi r16, (1<<PUD)
-	out MCUCR, r16
+    ; Disable pull-ups so that clocking out the waveform doesn't keep
+    ; toggling active pull-ups on PC1-PC6.
+    ldi r16, (1<<PUD)
+    out MCUCR, r16
 
-	; Set PC0 as output, PC1-PC6 as inputs.
-	ldi r16, (1<<DDC0)
-	out DDRC, r16
+    ; Set PC0 as output, PC1-PC6 as inputs.
+    ldi r16, (1<<DDC0)
+    out DDRC, r16
 
-	; TODO(comradex): get data from serial port.
-	ldi XH, high(8)
-	ldi XL, low(8)
+    ; TODO(comradex): get data from serial port.
+    ldi r16, 8
+    ldi r17, 0x55
+    sts clkout_bit_count, r16
+    sts clkout_bytes+28, r17
 
-	; loop address is clkout_end + -2*N + 1
-	ldi r16, -2
-	ldi r17, 8 ; N
-	mulsu r16, r17
-	
-	ldi r16, 1
-	ldi r17, 0
-	add r0, r16
-	adc r1, r17
+    jmp clkout
 
-	ldi ZH, high(clkout_end)
-	ldi ZL, low(clkout_end)
-	add ZL, r0
-	adc ZH, r1
-
-	ldi r28, 0x55
-	ijmp
 
 ; Clock out a delta-modulation-coded cyclic waveform.
 ;
@@ -136,55 +124,115 @@ irq_reset:
 ; Byte M (the first in the waveform) is always stored in r28, regardless of
 ; how many bytes are actually used. It must be in a fixed register so that
 ; it can be loaded before the jump.
+;
+; At entry,
+;	clkout_bit_count	number of bits in the data
+;	clkout_bytes		data bytes that will be copied to r0...r28
+;                       (remember that byte M always goes in r28)
+;
+; This subroutine never returns.
+
+.dseg
+clkout_bit_count: .byte 1
+clkout_bytes: .byte 29
+
+.cseg
+clkout:
+    ; loop address is clkout_end + -2*N + 1
+    ldi r16, -2
+    lds r17, clkout_bit_count ; N
+    mulsu r16, r17
+    
+    ldi r16, 1
+    ldi r17, 0
+    add r0, r16
+    adc r1, r17
+
+    ldi ZH, high(clkout_end)
+    ldi ZL, low(clkout_end)
+    add ZL, r0
+    adc ZH, r1
+
+    lds r0, clkout_bytes+0
+    lds r1, clkout_bytes+1
+    lds r2, clkout_bytes+2
+    lds r3, clkout_bytes+3
+    lds r4, clkout_bytes+4
+    lds r5, clkout_bytes+5
+    lds r6, clkout_bytes+6
+    lds r7, clkout_bytes+7
+    lds r8, clkout_bytes+8
+    lds r9, clkout_bytes+9
+    lds r10, clkout_bytes+10
+    lds r11, clkout_bytes+11
+    lds r12, clkout_bytes+12
+    lds r13, clkout_bytes+13
+    lds r14, clkout_bytes+14
+    lds r15, clkout_bytes+15
+    lds r16, clkout_bytes+16
+    lds r17, clkout_bytes+17
+    lds r18, clkout_bytes+18
+    lds r19, clkout_bytes+19
+    lds r20, clkout_bytes+20
+    lds r21, clkout_bytes+21
+    lds r22, clkout_bytes+22
+    lds r23, clkout_bytes+23
+    lds r24, clkout_bytes+24
+    lds r25, clkout_bytes+25
+    lds r26, clkout_bytes+26
+    lds r27, clkout_bytes+27
+    lds r28, clkout_bytes+28
+    mov r29, r28
+    ijmp
 
 .macro clkout_byte
-	mov r29, @0
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
-	lsr r29
-	out PORTC, r29
+    mov r29, @0
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
+    lsr r29
+    out PORTC, r29
 .endmacro
 
-	clkout_byte r28
-	clkout_byte r27
-	clkout_byte r26
-	clkout_byte r25
-	clkout_byte r24
-	clkout_byte r23
-	clkout_byte r22
-	clkout_byte r21
-	clkout_byte r20
-	clkout_byte r19
-	clkout_byte r18
-	clkout_byte r17
-	clkout_byte r16
-	clkout_byte r15
-	clkout_byte r14
-	clkout_byte r13
-	clkout_byte r12
-	clkout_byte r11
-	clkout_byte r10
-	clkout_byte r9
-	clkout_byte r8
-	clkout_byte r7
-	clkout_byte r6
-	clkout_byte r5
-	clkout_byte r4
-	clkout_byte r3
-	clkout_byte r2
-	clkout_byte r1
-	clkout_byte r0
+    clkout_byte r28
+    clkout_byte r27
+    clkout_byte r26
+    clkout_byte r25
+    clkout_byte r24
+    clkout_byte r23
+    clkout_byte r22
+    clkout_byte r21
+    clkout_byte r20
+    clkout_byte r19
+    clkout_byte r18
+    clkout_byte r17
+    clkout_byte r16
+    clkout_byte r15
+    clkout_byte r14
+    clkout_byte r13
+    clkout_byte r12
+    clkout_byte r11
+    clkout_byte r10
+    clkout_byte r9
+    clkout_byte r8
+    clkout_byte r7
+    clkout_byte r6
+    clkout_byte r5
+    clkout_byte r4
+    clkout_byte r3
+    clkout_byte r2
+    clkout_byte r1
+    clkout_byte r0
 clkout_end:
-	mov r29, r28
-	ijmp
+    mov r29, r28
+    ijmp
