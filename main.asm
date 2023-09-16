@@ -5,6 +5,10 @@
 ;
 ; Fuses should be set for no bootloader.
 
+.equ f_cpu = 16000000
+.equ baud = 9600
+.equ uart_ubrr = (f_cpu / (16 * baud)) - 1
+
 .cseg
 .org 0x0000
     jmp irq_reset
@@ -59,14 +63,14 @@ irq_analog_comp:
 irq_twi:
 irq_spm_ready:
 unhandled_loop:
-    jmp unhandled_loop
+    rjmp unhandled_loop
 
 
 irq_reset:
     ; Set stack pointer in case I want to use interrupts or calls.
-    ldi r20, high(RAMEND)
+    ldi r16, high(RAMEND)
     out SPH, r16
-    ldi r20, low(RAMEND)
+    ldi r16, low(RAMEND)
     out SPL, r16
 
     ; Disable pull-ups so that clocking out the waveform doesn't keep
@@ -78,11 +82,7 @@ irq_reset:
     ldi r16, (1<<DDC0)
     out DDRC, r16
 
-    ; TODO(comradex): get data from serial port.
-    ldi r16, 8
-    ldi r17, 0x55
-    sts clkout_bit_count, r16
-    sts clkout_bytes+28, r17
+    call uart_recv_clkout_data
 
     jmp clkout
 
@@ -152,37 +152,49 @@ clkout:
     ldi ZL, low(clkout_end)
     add ZL, r0
     adc ZH, r1
+    push ZH
+    push ZL
 
-    lds r0, clkout_bytes+0
-    lds r1, clkout_bytes+1
-    lds r2, clkout_bytes+2
-    lds r3, clkout_bytes+3
-    lds r4, clkout_bytes+4
-    lds r5, clkout_bytes+5
-    lds r6, clkout_bytes+6
-    lds r7, clkout_bytes+7
-    lds r8, clkout_bytes+8
-    lds r9, clkout_bytes+9
-    lds r10, clkout_bytes+10
-    lds r11, clkout_bytes+11
-    lds r12, clkout_bytes+12
-    lds r13, clkout_bytes+13
-    lds r14, clkout_bytes+14
-    lds r15, clkout_bytes+15
-    lds r16, clkout_bytes+16
-    lds r17, clkout_bytes+17
-    lds r18, clkout_bytes+18
-    lds r19, clkout_bytes+19
-    lds r20, clkout_bytes+20
-    lds r21, clkout_bytes+21
-    lds r22, clkout_bytes+22
-    lds r23, clkout_bytes+23
-    lds r24, clkout_bytes+24
-    lds r25, clkout_bytes+25
-    lds r26, clkout_bytes+26
-    lds r27, clkout_bytes+27
-    lds r28, clkout_bytes+28
+    ; Using Z register uses half as many program bytes as loading
+    ; from immediate addresses.
+    ldi ZH, high(clkout_bytes)
+    ldi ZL, low(clkout_bytes)
+    ld r0, Z+
+    ld r1, Z+
+    ld r2, Z+
+    ld r3, Z+
+    ld r4, Z+
+    ld r5, Z+
+    ld r6, Z+
+    ld r7, Z+
+    ld r8, Z+
+    ld r9, Z+
+    ld r10, Z+
+    ld r11, Z+
+    ld r12, Z+
+    ld r13, Z+
+    ld r14, Z+
+    ld r15, Z+
+    ld r16, Z+
+    ld r17, Z+
+    ld r18, Z+
+    ld r19, Z+
+    ld r20, Z+
+    ld r21, Z+
+    ld r22, Z+
+    ld r23, Z+
+    ld r24, Z+
+    ld r25, Z+
+    ld r26, Z+
+    ld r27, Z+
+    ld r28, Z+
+
+    ; Preload r29 because the loop address never goes to a load
+    ; instruction.
     mov r29, r28
+
+    pop ZL
+    pop ZH
     ijmp
 
 .macro clkout_byte
@@ -236,3 +248,63 @@ clkout:
 clkout_end:
     mov r29, r28
     ijmp
+
+
+; Receives 30 bytes defining the clkout waveform.
+;
+; Sends '?' when it is ready to receive bytes.
+; Sends '.' when it has received all the bytes.
+
+uart_recv_clkout_data:
+    ; Set baud rate.
+    ldi r17, high(uart_ubrr)
+    ldi r16, low(uart_ubrr)
+    sts UBRR0H, r17
+    sts UBRR0L, r16
+
+    ; Set: Ansynchronous, N parity, 1 stop bit.
+    ldi r16, (1<<UCSZ00) | (1 <<UCSZ01)
+    sts UCSR0C, r16
+
+    ; Enable RX, TX, no interrupts.
+    ldi r16, (1<<RXEN0) | (1<<TXEN0)
+    sts UCSR0B, r16
+
+    ; Send ready.
+    ldi r16, '?'
+    sts UDR0, r16
+    rcall uart_await_xmit_ready
+
+    ; Receive 30 bytes starting at clkout_bit_count.
+    ldi r17, 30
+    ldi XH, high(clkout_bit_count)
+    ldi XL, low(clkout_bit_count)
+uart_recv_clkout_data_next:
+    rcall uart_await_recv_ready
+    lds r16, UDR0
+    st X+, r16
+    dec r17
+    brne uart_recv_clkout_data_next
+
+    ; Send okay.
+    ldi r16, '.'
+    sts UDR0, r16
+    rcall uart_await_xmit_ready
+
+    ; Disable RX, TX.
+    ;ldi r16, 0
+    ;sts UCSR0B, r16
+    
+    ret
+
+uart_await_xmit_ready:
+    lds r16, UCSR0A
+    sbrs r16, UDRE0
+    rjmp uart_await_xmit_ready
+    ret
+
+uart_await_recv_ready:
+    lds r16, UCSR0A
+    sbrs r16, RXC0
+    rjmp uart_await_recv_ready
+    ret
