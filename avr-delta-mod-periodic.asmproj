@@ -15,7 +15,7 @@
     <Name>avr-delta-mod-periodic</Name>
     <RootNamespace>avr-delta-mod-periodic</RootNamespace>
     <ToolchainFlavour>Native</ToolchainFlavour>
-    <EntryFile>$(MSBuildProjectDirectory)\main.asm</EntryFile>
+    <EntryFile>$(MSBuildProjectDirectory)\avr-delta-mod-periodic.asm</EntryFile>
     <KeepTimersRunning>true</KeepTimersRunning>
     <OverrideVtor>false</OverrideVtor>
     <CacheFlash>true</CacheFlash>
@@ -84,7 +84,7 @@
     <OutputType>Executable</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="main.asm">
+    <Compile Include="avr-delta-mod-periodic.asm">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

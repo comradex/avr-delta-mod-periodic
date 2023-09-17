@@ -90,6 +90,9 @@ def rotate_and_drop(bits: List[int]) -> List[int]:
 
 
 def pack(bits: List[int]) -> bytearray:
+    """
+    Pack bits into bytes as required by the clkout subroutine.
+    """
     packed = bytearray(30)
     packed[0] = len(bits)
 
@@ -112,10 +115,10 @@ def main():
     args = parse_arguments()
 
     tsample = 2.0 / args.fcpu
-    print(f"tsample={tsample:6g}")
+    print(f"tsample={tsample:.6g}")
 
     fsin = 1 / (args.n * tsample)
-    print(f"fsin={fsin:6g}")
+    print(f"fsin={fsin:.6g}")
     
     sinf = make_sinf(fsin)
     samples = list(itertools.islice(modulate(sinf, args.dslope, tsample), args.n))
