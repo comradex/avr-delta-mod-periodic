@@ -67,12 +67,6 @@ unhandled_loop:
 
 
 irq_reset:
-    ; Set stack pointer in case I want to use interrupts or calls.
-    ldi r16, high(RAMEND)
-    out SPH, r16
-    ldi r16, low(RAMEND)
-    out SPL, r16
-
     ; Disable pull-ups so that clocking out the waveform doesn't keep
     ; toggling active pull-ups on PC1-PC6.
     ldi r16, (1<<PUD)
@@ -81,6 +75,20 @@ irq_reset:
     ; Set PC0 as output, PC1-PC6 as inputs.
     ldi r16, (1<<DDC0)
     out DDRC, r16
+
+    ; Set baud rate.
+    ldi r17, high(uart_ubrr)
+    ldi r16, low(uart_ubrr)
+    sts UBRR0H, r17
+    sts UBRR0L, r16
+
+    ; Set: Ansynchronous, N parity, 1 stop bit.
+    ldi r16, (1<<UCSZ00) | (1 <<UCSZ01)
+    sts UCSR0C, r16
+
+    ; Enable RX, TX, no interrupts.
+    ldi r16, (1<<RXEN0) | (1<<TXEN0)
+    sts UCSR0B, r16
 
     call uart_recv_clkout_data
 
@@ -256,24 +264,10 @@ clkout_end:
 ; Sends '.' when it has received all the bytes.
 
 uart_recv_clkout_data:
-    ; Set baud rate.
-    ldi r17, high(uart_ubrr)
-    ldi r16, low(uart_ubrr)
-    sts UBRR0H, r17
-    sts UBRR0L, r16
-
-    ; Set: Ansynchronous, N parity, 1 stop bit.
-    ldi r16, (1<<UCSZ00) | (1 <<UCSZ01)
-    sts UCSR0C, r16
-
-    ; Enable RX, TX, no interrupts.
-    ldi r16, (1<<RXEN0) | (1<<TXEN0)
-    sts UCSR0B, r16
-
     ; Send ready.
+    rcall uart_await_xmit_ready
     ldi r16, '?'
     sts UDR0, r16
-    rcall uart_await_xmit_ready
 
     ; Receive 30 bytes starting at clkout_bit_count.
     ldi r17, 30
@@ -287,13 +281,9 @@ uart_recv_clkout_data_next:
     brne uart_recv_clkout_data_next
 
     ; Send okay.
+    rcall uart_await_xmit_ready
     ldi r16, '.'
     sts UDR0, r16
-    rcall uart_await_xmit_ready
-
-    ; Disable RX, TX.
-    ;ldi r16, 0
-    ;sts UCSR0B, r16
     
     ret
 
