@@ -26,4 +26,6 @@ USART SPI mode on ATMegas that have it, or even RP2040's PIO peripheral.
 Included is a Python script that can modulate and prepack a sine, and
 send the bitstream over serial to the microcontroller.
 
+![scope 50khz](scope-50khz.png)
+
 [eevblog]: https://www.eevblog.com/forum/microcontrollers/how-fast-could-serial-bits-read-from-a-table-in-sram-be-outputted/
